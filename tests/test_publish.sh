@@ -37,7 +37,7 @@ make_dist() { # DIR PASSED
 }
 
 export CI_PROJECT_ID=42 CI_JOB_TOKEN=secret-token TT_ALLOW_INSECURE_HTTP=1
-unset GITLAB_TOKEN TAILSCALE_VERSION || true
+unset GITLAB_TOKEN TT_BUILD_VERSION || true
 pub() { "$ROOT/scripts/publish.sh" "$@"; }
 chk() { "$ROOT/scripts/check-published.sh" "$@"; }
 status_of() { local rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "$rc"; }
@@ -89,7 +89,7 @@ make_dist "$tmp/d6" true
 echo tamper >>"$tmp/d6/$ID/$BASE"
 assert_fails "refuses checksum mismatch" pub "$tmp/d6/$ID"
 make_dist "$tmp/d7" true
-assert_fails "refuses version mismatch with pipeline" env TAILSCALE_VERSION=1.104.2 "$ROOT/scripts/publish.sh" "$tmp/d7/$ID"
+assert_fails "refuses version mismatch with pipeline" env TT_BUILD_VERSION=1.104.2 "$ROOT/scripts/publish.sh" "$tmp/d7/$ID"
 assert_fails "requires credentials" env -u CI_JOB_TOKEN "$ROOT/scripts/publish.sh" "$tmp/d7/$ID"
 assert_fails "refuses plain http without test opt-in" env -u TT_ALLOW_INSECURE_HTTP "$ROOT/scripts/publish.sh" "$tmp/d7/$ID"
 

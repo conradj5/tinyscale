@@ -123,3 +123,9 @@ build:
       - artifact: child-pipeline.yml
         job: generate
     strategy: depend
+    # The child pipeline is self-contained (images and versions are resolved
+    # by generate). Forwarded variables would take precedence over the
+    # child's job variables, e.g. a blank TAILSCALE_VERSION.
+    forward:
+      yaml_variables: false
+      pipeline_variables: false

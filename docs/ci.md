@@ -50,7 +50,10 @@ requests run `test` only.
 Detection writes its results as `RELEASE_*` dotenv variables. These are
 deliberately different from `TAILSCALE_VERSION`: in GitLab's variable
 precedence, a blank manual-run variable would otherwise override a dotenv
-value.
+value. For the same reason the `build` trigger forwards no variables to the
+child pipeline, whose jobs take their inputs from `TT_*` job variables
+written by `generate` (`TT_BUILD_VERSION`, `TT_BUILD_COMMIT`,
+`TT_TARGET_ID`, `TT_TARGET_CONFIG`, `TT_RELEASE_TARGETS`).
 
 ## Container images
 

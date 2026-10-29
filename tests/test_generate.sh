@@ -55,4 +55,17 @@ done
 assert_ok "generates with everything published" gen
 assert_eq "only the release job" "release" "$(jobs)"
 
+# Variables from the parent pipeline must never shadow the child's inputs:
+# the trigger forwards nothing, and child job variable names do not appear
+# among the parent's global variables.
+assert_ok "regenerate with every job" env FORCE_REBUILD=true bash -c "cd '$tmp' && '$ROOT/scripts/ci/generate-job.sh' >/dev/null 2>&1"
+assert_eq "trigger forwards no variables" '{"yaml_variables": false, "pipeline_variables": false}' \
+	"$(python3 -s -c 'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))["build"]["trigger"]["forward"]))' "$ROOT/.gitlab-ci.yml")"
+assert_eq "child variables do not collide with parent variables" "" "$(python3 -s -c '
+import sys, yaml
+parent = set(yaml.safe_load(open(sys.argv[1]))["variables"])
+child = yaml.safe_load(open(sys.argv[2]))
+used = {k for j in child.values() if isinstance(j, dict) for k in j.get("variables", {})}
+print(" ".join(sorted(parent & used)))' "$ROOT/.gitlab-ci.yml" "$tmp/child-pipeline.yml")"
+
 finish

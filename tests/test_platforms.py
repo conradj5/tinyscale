@@ -183,7 +183,7 @@ class PipelineTests(unittest.TestCase):
         pub = doc["publish:linux_arm64"]
         # Each publish job depends only on its own build job.
         self.assertEqual(pub["needs"], [{"job": "build:linux_arm64", "artifacts": True}])
-        cfg_json = json.loads(doc["build:linux_arm64"]["variables"]["TARGET_CONFIG"])
+        cfg_json = json.loads(doc["build:linux_arm64"]["variables"]["TT_TARGET_CONFIG"])
         self.assertEqual(cfg_json["id"], "linux_arm64")
         self.assertEqual(doc["build:linux_arm64"]["image"], "golang:1.27.3-alpine3.24")
         # bash is installed by plain sh before any bash script runs.
@@ -214,7 +214,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(rel["stage"], "release")
         self.assertEqual(rel["needs"], [{"job": "publish:linux_arm64", "artifacts": False}])
         # The Release covers every enabled target, not just this run's builds.
-        self.assertEqual(rel["variables"]["RELEASE_TARGETS"], "linux_arm64,linux_amd64")
+        self.assertEqual(rel["variables"]["TT_RELEASE_TARGETS"], "linux_arm64,linux_amd64")
 
     def test_empty_plan(self):
         doc = self.gen([])
@@ -253,7 +253,7 @@ class PipelineTests(unittest.TestCase):
             text = out.read_text()
             self.assertNotIn("&id", text)  # no YAML anchors
             doc = yaml.safe_load(text)
-            self.assertEqual(doc["build:linux_amd64"]["variables"]["TAILSCALE_VERSION"], "1.104.4")
+            self.assertEqual(doc["build:linux_amd64"]["variables"]["TT_BUILD_VERSION"], "1.104.4")
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
             rc = p.main(["--config", str(ROOT / "platforms.yml"), "show", "nope_nope"])

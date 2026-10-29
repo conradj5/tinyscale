@@ -34,8 +34,8 @@ version="$(json_field "$meta" .upstream.version)"
 target_id="$(json_field "$meta" .target.id)"
 [[ "$base" == "$(artifact_base "$version" "$target_id")" ]] || die "metadata artifact name mismatch"
 [[ "$(json_field "$meta" .validation_passed)" == true ]] || die "$base did not pass validation; refusing to publish"
-if [[ -n "${TAILSCALE_VERSION:-}" && "$TAILSCALE_VERSION" != "$version" ]]; then
-	die "artifacts are for $version but pipeline expects $TAILSCALE_VERSION"
+if [[ -n "${TT_BUILD_VERSION:-}" && "$TT_BUILD_VERSION" != "$version" ]]; then
+	die "artifacts are for $version but pipeline expects $TT_BUILD_VERSION"
 fi
 
 sums="$dir/${base}.sha256"

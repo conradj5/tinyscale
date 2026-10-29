@@ -352,8 +352,8 @@ def generate_pipeline(targets: list[dict], build_ids: list[str], *, version: str
             raise ConfigError(f"invalid image {image!r}")
 
     common_vars = {
-        "TAILSCALE_VERSION": version,
-        "TAILSCALE_COMMIT": commit,
+        "TT_BUILD_VERSION": version,
+        "TT_BUILD_COMMIT": commit,
     }
     pipeline: dict[str, Any] = {
         "stages": ["build", "publish", "release"],
@@ -380,8 +380,8 @@ def generate_pipeline(targets: list[dict], build_ids: list[str], *, version: str
         if not t["enabled"]:
             raise ConfigError(f"target {target_id!r} is not enabled")
         job_vars = dict(common_vars)
-        job_vars["TARGET_ID"] = target_id
-        job_vars["TARGET_CONFIG"] = json.dumps(t, sort_keys=True, separators=(",", ":"))
+        job_vars["TT_TARGET_ID"] = target_id
+        job_vars["TT_TARGET_CONFIG"] = json.dumps(t, sort_keys=True, separators=(",", ":"))
         pipeline[f"build:{target_id}"] = {
             "stage": "build",
             "image": go_image,
@@ -430,7 +430,7 @@ def generate_pipeline(targets: list[dict], build_ids: list[str], *, version: str
             "stage": "release",
             "image": helper_image,
             "needs": [{"job": f"publish:{i}", "artifacts": False} for i in build_ids],
-            "variables": dict(common_vars, RELEASE_TARGETS=",".join(enabled_ids)),
+            "variables": dict(common_vars, TT_RELEASE_TARGETS=",".join(enabled_ids)),
             "resource_group": "release",
             "interruptible": False,
             "script": [
