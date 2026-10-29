@@ -40,7 +40,7 @@ pid=$!
 for _ in $(seq 50); do [[ -s "$tmp/port" ]] && break; sleep 0.1; done
 host="http://127.0.0.1:$(cat "$tmp/port")"
 export CI_API_V4_URL="$host/api/v4" CI_PROJECT_ID=42 CI_JOB_TOKEN=secret-token TT_ALLOW_INSECURE_HTTP=1 \
-	CI_PROJECT_URL="$host/me/tailscale-tiny" CI_COMMIT_SHA=abcdefabcdefabcdefabcdefabcdefabcdefabcd
+	CI_PROJECT_URL="$host/me/tinyscale" CI_COMMIT_SHA=abcdefabcdefabcdefabcdefabcdefabcdefabcd
 ci_env=(-e CI_API_V4_URL -e CI_PROJECT_ID -e CI_JOB_TOKEN -e TT_ALLOW_INSECURE_HTTP -e CI_PROJECT_URL -e CI_COMMIT_SHA)
 
 generate() { (cd "$tmp/gen" && TARGETS="$targets" "$ROOT/scripts/ci/generate-job.sh"); }
@@ -81,7 +81,7 @@ done
 
 echo "== verify"
 state="$(curl -s "$host/__releases__")"
-assert_eq "Release created" "Tailscale Tiny ${RELEASE_VERSION}" "$(jq -r --arg t "v$RELEASE_VERSION" '.releases[$t].name' <<<"$state")"
+assert_eq "Release created" "Tinyscale ${RELEASE_VERSION}" "$(jq -r --arg t "v$RELEASE_VERSION" '.releases[$t].name' <<<"$state")"
 assert_eq "tag at pipeline commit" "$CI_COMMIT_SHA" "$(jq -r --arg t "v$RELEASE_VERSION" '.tags[$t]' <<<"$state")"
 
 # Router-style download of the first enabled target.

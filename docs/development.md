@@ -70,6 +70,7 @@ byte-identical files.
 | `scripts/release.sh` | GitLab Release and tag with version-independent download paths |
 | `scripts/local-build.sh` | Runs the CI build locally in Docker |
 | `scripts/lib/` | Shared shell helpers |
+| `overlay/` | Go files added to the upstream build for `self_update` targets ([self-update.md](self-update.md)) |
 | `scripts/ci/` | Thin CI job wrappers and the Alpine dependency installer |
 | `tests/` | Offline test suite (`tests/run.sh`), mock GitLab API, Docker integration test |
 

@@ -19,6 +19,7 @@ for m in "$@"; do
 		  "- Target: \($m.target.os)/\($m.target.arch)\(if $m.target.variant then " (\($m.target.variant))" else "" end), combined: \($m.target.combined)",
 		  "- Toolchain: \($m.build.go_version)\(if $m.build.upx_version then ", \($m.build.upx_version)" else "" end)",
 		  "- Features (\($m.build.features.mode)): \($m.build.features.add | join(", ") | if . == "" then "upstream default" else . end)\(if ($m.build.features.remove | length) > 0 then "; removed: \($m.build.features.remove | join(", "))" else "" end)",
+		  (if $m.build.self_update.enabled then "- Self-update: `tailscale update` installs Tinyscale releases from \($m.build.self_update.update_url | if . == "" then "TT_UPDATE_URL (none compiled in)" else "`\(.)`" end)" else empty end),
 		  "- Validation: \(if $m.validation_passed then "PASSED" else "FAILED" end)",
 		  "",
 		  "| File | Size | Ratio | SHA-256 | Checks |",

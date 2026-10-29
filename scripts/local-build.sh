@@ -34,7 +34,7 @@ if [[ -z "$targets" ]]; then
 fi
 [[ -n "$targets" ]] || die "no enabled targets"
 
-image="tailscale-tiny-builder:${RELEASE_GO_VERSION}"
+image="tinyscale-builder:${RELEASE_GO_VERSION}"
 log "building helper image $image from $RELEASE_GO_IMAGE"
 docker build -q "${build_flags[@]}" -f "$TT_ROOT/ci/builder.Dockerfile" \
 	--build-arg "GO_IMAGE=$RELEASE_GO_IMAGE" -t "$image" "$TT_ROOT" >/dev/null
@@ -48,6 +48,7 @@ for id in "${ids[@]}"; do
 	log "=== $id ($RELEASE_VERSION) ==="
 	if ! docker run --rm --network bridge \
 		-u "$(id -u):$(id -g)" -e HOME=/tmp \
+		-e TT_UPDATE_URL \
 		-e GOMODCACHE=/work/.cache/go-mod -e GOCACHE=/work/.cache/go-build -e GOFLAGS=-modcacherw \
 		-v "$TT_ROOT:/work" -w /work "$image" \
 		bash scripts/build-release.sh --version "$RELEASE_VERSION" --commit "$RELEASE_COMMIT" \

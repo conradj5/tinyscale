@@ -38,6 +38,7 @@ for id in "${targets[@]}"; do is_target_id "$id" || die "invalid target: $id"; d
 require_cmd curl jq
 registry_check_env
 tag="v${version}"
+name="Tinyscale ${version}"
 api="/projects/${CI_PROJECT_ID}"
 
 tmp="$(mktemp -d)"
@@ -83,7 +84,7 @@ done
 
 project_url="${CI_PROJECT_URL:-}"
 {
-	printf 'Tailscale Tiny build of upstream Tailscale [%s](https://github.com/%s/releases/tag/%s) (commit `%s`).\n\n' \
+	printf 'Tinyscale build of upstream Tailscale [%s](https://github.com/%s/releases/tag/%s) (commit `%s`).\n\n' \
 		"$tag" "$TT_UPSTREAM_REPO" "$tag" "$commit"
 	printf 'Files are served from the Generic Package Registry (package `%s`, version `%s`). ' "$TT_PACKAGE_NAME" "$version"
 	printf 'Each target has a `.manifest` (KEY=value: version, file names, SHA-256, sizes) for device-side scripts.\n\n'
@@ -110,7 +111,7 @@ if [[ "$code" == 404 ]]; then
 	fi
 	[[ -n "${CI_COMMIT_SHA:-}" ]] || die "CI_COMMIT_SHA is required to create tag ${tag}"
 	jq -n --arg tag "$tag" --arg ref "$CI_COMMIT_SHA" --rawfile notes "$tmp/notes.md" --argjson links "$links" \
-		--arg name "Tailscale Tiny ${version}" \
+		--arg name "$name" \
 		'{name: $name, tag_name: $tag, ref: $ref, description: $notes, assets: {links: $links}}' >"$tmp/create.json"
 	code="$(registry_api POST "${api}/releases" "$tmp/created.json" "$tmp/create.json")"
 	case "$code" in
@@ -125,15 +126,15 @@ elif [[ "$code" != 200 ]]; then
 	die "cannot look up Release ${tag} (HTTP $code)"
 fi
 
-# Rewrite the notes only when they differ (ignoring trailing whitespace, which
-# GitLab may normalize), so routine reruns change nothing.
+# Rewrite the title and notes only when they differ (ignoring trailing
+# whitespace, which GitLab may normalize), so routine reruns change nothing.
 notes_changed=0
 if [[ ! -s "$tmp/existing.json" ]] ||
-	! jq -e --rawfile notes "$tmp/notes.md" \
-		'(.description // "" | sub("\\s+$"; "")) == ($notes | sub("\\s+$"; ""))' "$tmp/existing.json" >/dev/null; then
-	jq -n --rawfile notes "$tmp/notes.md" '{description: $notes}' >"$tmp/update.json"
+	! jq -e --rawfile notes "$tmp/notes.md" --arg name "$name" \
+		'.name == $name and (.description // "" | sub("\\s+$"; "")) == ($notes | sub("\\s+$"; ""))' "$tmp/existing.json" >/dev/null; then
+	jq -n --rawfile notes "$tmp/notes.md" --arg name "$name" '{name: $name, description: $notes}' >"$tmp/update.json"
 	code="$(registry_api PUT "${api}/releases/${tag}" "$tmp/updated.json" "$tmp/update.json")"
-	[[ "$code" == 200 ]] || die "updating Release ${tag} notes failed (HTTP $code)"
+	[[ "$code" == 200 ]] || die "updating Release ${tag} title and notes failed (HTTP $code)"
 	notes_changed=1
 fi
 
@@ -158,5 +159,5 @@ done < <(jq -c '.[]' <<<"$links")
 if ((added + changed + notes_changed == 0)); then
 	log "Release ${tag} is up to date"
 else
-	log "updated Release ${tag}: ${added} link(s) added, ${changed} changed, notes $( ((notes_changed)) && echo updated || echo unchanged)"
+	log "updated Release ${tag}: ${added} link(s) added, ${changed} changed, title and notes $( ((notes_changed)) && echo updated || echo unchanged)"
 fi

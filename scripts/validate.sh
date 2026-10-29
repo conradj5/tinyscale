@@ -13,7 +13,9 @@
 #               stamp, clean VCS state (uncompressed only; needs `go`)
 #   size        against validation.max_size / max_compressed_size
 #   upx         `upx -t` integrity test (compressed only)
-#   smoke       runs `--version` (and the CLI `version`) via qemu or natively
+#   smoke       runs `--version` (and the CLI `version`) via qemu or natively;
+#               for self_update targets, also checks that `tailscale update`
+#               is the Tinyscale updater
 #               and compares the reported version and commit
 # Exits non-zero if any check fails.
 set -euo pipefail
@@ -256,6 +258,17 @@ unavailable) record smoke fail "smoke test requested but no way to execute $goos
 			detail+=("'$probe' failed")
 		fi
 	done
+	if $combined && [[ "$(jq -r '.self_update // false' "$target_json")" == true ]]; then
+		# --help exits non-zero by design; only the text matters.
+		out="$(run_version tailscale update --help || true)"
+		if grep -q 'Tinyscale releases' <<<"$out"; then
+			detail+=("'tailscale update' is the Tinyscale updater")
+		else
+			ok=false
+			detail+=("'tailscale update' is not the Tinyscale updater")
+			log "tailscale update --help output: $out"
+		fi
+	fi
 	if $ok; then
 		record smoke pass "via $how: ${detail[*]}"
 	else

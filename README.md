@@ -1,6 +1,6 @@
-# Tailscale Tiny
+# Tinyscale
 
-Tailscale Tiny builds small Tailscale executables from upstream **stable**
+Tinyscale builds small Tailscale executables from upstream **stable**
 releases, for whichever operating systems and CPU architectures are listed in
 [`platforms.yml`](platforms.yml). A scheduled GitLab pipeline notices each
 new release, cross-compiles and validates every enabled target, and publishes
@@ -44,6 +44,10 @@ the CLI: install it as `tailscaled` and symlink `tailscale` to it.
 
 [docs/manifest.md](docs/manifest.md) describes the URLs, the manifest format
 and the compatibility guarantees that update scripts can rely on.
+
+Optionally, a target can be built with `self_update: true`, so that
+`tailscale update` and the admin console's Update button install Tailscale
+Tiny releases ([docs/self-update.md](docs/self-update.md)).
 
 ## Running the pipeline
 
@@ -108,6 +112,7 @@ disabled.
 | Document | Contents |
 |---|---|
 | [docs/manifest.md](docs/manifest.md) | Download URLs, manifest format, compatibility rules, update-script guidance |
+| [docs/self-update.md](docs/self-update.md) | Opt-in `tailscale update` / admin-console updates from Tinyscale releases |
 | [docs/platforms.md](docs/platforms.md) | `platforms.yml` reference, default feature profile, measured sizes |
 | [docs/ci.md](docs/ci.md) | Pipeline structure, variables, images and Dependency Proxy, Releases, retries |
 | [docs/validation.md](docs/validation.md) | What each check proves, and its limitations |

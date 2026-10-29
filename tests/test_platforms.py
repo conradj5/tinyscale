@@ -163,6 +163,33 @@ class ResolveTests(unittest.TestCase):
             p.resolve_config(cfg(schema_version=2))
 
 
+class SelfUpdateTests(unittest.TestCase):
+    def resolve(self, entry):
+        return p.resolve_config(cfg(platforms=[entry]))[0]
+
+    def test_off_by_default(self):
+        t = self.resolve({"os": "linux", "arch": "arm64", "enabled": True})
+        self.assertFalse(t["self_update"])
+        self.assertNotIn("clientupdate", t["features"]["add"])
+
+    def test_adds_clientupdate_feature(self):
+        t = self.resolve({"os": "linux", "arch": "arm64", "enabled": True, "self_update": True})
+        self.assertTrue(t["self_update"])
+        self.assertIn("clientupdate", t["features"]["add"])
+        self.assertEqual(t["features"]["add"].count("clientupdate"), 1)
+
+    def test_rejected_where_unsupported(self):
+        for entry, msg in (
+            ({"os": "darwin", "arch": "arm64", "self_update": True}, "only supported for linux"),
+            ({"os": "linux", "arch": "arm64", "combined": False, "self_update": True}, "combined: true"),
+            ({"os": "linux", "arch": "arm64", "self_update": True,
+              "features": {"remove": ["clientupdate"]}}, "conflicts with removing"),
+            ({"os": "linux", "arch": "arm64", "self_update": "yes"}, "expected true or false"),
+        ):
+            with self.subTest(entry=entry), self.assertRaisesRegex(p.ConfigError, msg):
+                self.resolve(entry)
+
+
 class PipelineTests(unittest.TestCase):
     def setUp(self):
         self.targets = p.resolve_config(cfg(platforms=[

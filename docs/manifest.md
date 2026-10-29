@@ -1,6 +1,6 @@
 # Download interface and manifest
 
-This is the stable interface for anything that downloads Tailscale Tiny
+This is the stable interface for anything that downloads Tinyscale
 builds: update scripts on routers, provisioning tools, or people. It covers
 the download URLs, the per-target manifest, and the compatibility rules.
 Consumers should rely only on what this page describes.
@@ -16,7 +16,7 @@ are reachable under two version-independent patterns:
 ```
 
 `<project URL>` is the GitLab project's web address, for example
-`https://gitlab.example.com/group/tailscale-tiny`. Both patterns answer with
+`https://gitlab.example.com/group/tinyscale`. Both patterns answer with
 an HTTP redirect to the file, so clients must follow redirects (`curl -L`;
 BusyBox and OpenWrt `wget` follow them by default). Public projects need no
 credentials. For a private project, send a token that can read the project,
@@ -67,6 +67,7 @@ VERSION=1.104.4
 TAG=v1.104.4
 COMMIT=27047635f237d1f3e0b08c0f487674757f30d2f7
 TARGET=linux_arm64
+SELF_UPDATE=0
 BIN_FILE=tailscale-tiny_1.104.4_linux_arm64
 BIN_SHA256=bf7f92cab3e5c980e39aa5b5a81d05f8c340d7b74dc79f0baa6101e201ee64cd
 BIN_SIZE=15728800
@@ -93,6 +94,7 @@ Always present:
 | `TAG` | Upstream and Release tag, `v<VERSION>`. |
 | `COMMIT` | Full 40-character upstream commit the build was made from. |
 | `TARGET` | Target id, the same as `<target>` in the paths. |
+| `SELF_UPDATE` | `1` if `tailscale update` in this build installs Tinyscale releases ([self-update.md](self-update.md)), otherwise `0`. |
 
 Per executable, each with a `_FILE` (file name), `_SHA256` (lowercase hex
 SHA-256) and `_SIZE` (bytes) key:
@@ -138,7 +140,7 @@ Read values with `grep '^KEY=' | cut -d= -f2`. Never `source` or `eval` a
 downloaded file.
 
 ```sh
-url=https://gitlab.example.com/group/tailscale-tiny/-/releases
+url=https://gitlab.example.com/group/tinyscale/-/releases
 target=linux_arm64
 wget -qO /tmp/tt.manifest "$url/permalink/latest/downloads/$target.manifest"
 get() { grep "^$1=" /tmp/tt.manifest | cut -d= -f2; }

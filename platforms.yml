@@ -1,4 +1,4 @@
-# platforms.yml — declarative build targets for Tailscale Tiny.
+# platforms.yml — declarative build targets for Tinyscale.
 #
 # Every target inherits `defaults`, then `os_defaults.<goos>`, then its own
 # keys (later layers win; mappings merge recursively, lists are replaced).
@@ -46,9 +46,14 @@ defaults:
   # Strip symbol tables and DWARF (-ldflags "-s -w").
   strip: true
 
-  # Explicit CGO setting. Tailscale Tiny always builds with CGO disabled
+  # Explicit CGO setting. Tinyscale always builds with CGO disabled
   # unless a target overrides this.
   cgo: false
+
+  # Replace `tailscale update` (and the admin console's Update button) with
+  # an updater that installs this project's releases. Opt-in per target;
+  # linux targets with combined: true only. See docs/self-update.md.
+  self_update: false
 
   compression:
     enabled: false
@@ -111,6 +116,7 @@ platforms:
   - os: linux
     arch: arm64
     enabled: true
+    self_update: true
     validation:
       max_size: 40MiB
       max_compressed_size: 12MiB

@@ -1,4 +1,4 @@
-# Tailscale Tiny — GitLab CI/CD (GitLab Free compatible).
+# Tinyscale — GitLab CI/CD (GitLab Free compatible).
 #
 # Parent pipeline:
 #   test            unit tests + shellcheck (every pipeline)

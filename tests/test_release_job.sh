@@ -13,7 +13,7 @@ pid=$!
 for _ in $(seq 50); do [[ -s "$tmp/port" ]] && break; sleep 0.1; done
 host="http://127.0.0.1:$(cat "$tmp/port")"
 export CI_API_V4_URL="$host/api/v4" CI_PROJECT_ID=42 CI_JOB_TOKEN=secret-token TT_ALLOW_INSECURE_HTTP=1 \
-	CI_COMMIT_SHA=abcdefabcdefabcdefabcdefabcdefabcdefabcd CI_PROJECT_URL="$host/me/tailscale-tiny"
+	CI_COMMIT_SHA=abcdefabcdefabcdefabcdefabcdefabcdefabcd CI_PROJECT_URL="$host/me/tinyscale"
 C=27047635f237d1f3e0b08c0f487674757f30d2f7
 
 echo "version_lt"
@@ -71,6 +71,7 @@ assert_eq "no release yet" '{}' "$(state | jq -c .releases)"
 publish_fake 1.104.4 linux_amd64
 assert_ok "creates release when all published" rel 1.104.4 "$C" linux_arm64 linux_amd64
 assert_eq "tag created at pipeline commit" "$CI_COMMIT_SHA" "$(state | jq -r '.tags["v1.104.4"]')"
+assert_eq "release title" "Tinyscale 1.104.4" "$(state | jq -r '.releases["v1.104.4"].name')"
 assert_eq "12 asset links" 12 "$(state | jq '.releases["v1.104.4"].links | length')"
 assert_contains "notes include report" "$(state | jq -r '.releases["v1.104.4"].description')" "tailscale-tiny_1.104.4_linux_arm64.upx"
 assert_contains "notes include latest permalink" "$(state | jq -r '.releases["v1.104.4"].description')" "permalink/latest/downloads/linux_arm64.manifest"

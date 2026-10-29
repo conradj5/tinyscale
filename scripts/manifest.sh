@@ -12,6 +12,7 @@
 #   TAG=v1.104.4
 #   COMMIT=<upstream commit>
 #   TARGET=linux_arm64
+#   SELF_UPDATE=0
 #   BIN_FILE=tailscale-tiny_1.104.4_linux_arm64
 #   BIN_SHA256=<hex>
 #   BIN_SIZE=<bytes>
@@ -35,6 +36,7 @@ jq -r '
 	  "TAG=\(.upstream.tag)",
 	  "COMMIT=\(.upstream.commit)",
 	  "TARGET=\(.target.id)",
+	  "SELF_UPDATE=\(if .build.self_update.enabled then 1 else 0 end)",
 	  (.files[]
 	   | ((if $combined then "BIN" else (.component | ascii_upcase) end)
 	      + (if .compressed then "_UPX" else "" end)) as $k

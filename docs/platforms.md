@@ -44,6 +44,7 @@ recursively, and lists are **replaced**, not appended:
 | `extra_tags` | list | Extra Go build tags. |
 | `strip` | bool | Strip symbols and DWARF (`-s -w`). |
 | `cgo` | bool | `CGO_ENABLED`. Default `false`. |
+| `self_update` | bool | Make `tailscale update` (and admin-console updates) install Tinyscale releases; adds the `clientupdate` feature. Linux combined targets only. Default `false`. See [self-update.md](self-update.md). |
 | `compression.enabled` | bool | Also produce a UPX-compressed copy. Rejected for formats and architectures UPX can't handle (Mach-O, PE, riscv64, …). |
 | `compression.tool` | `upx` | Compressor. |
 | `compression.args` | list | Compressor flags (default `--best --lzma`). |
@@ -56,7 +57,7 @@ recursively, and lists are **replaced**, not appended:
 
 ## Default feature profile
 
-Tailscale can leave features out at build time. Tailscale Tiny never keeps
+Tailscale can leave features out at build time. Tinyscale never keeps
 its own list of `ts_omit_*` tags: it asks upstream's `./cmd/featuretags`
 for the exact release being built, so upstream resolves dependencies.
 

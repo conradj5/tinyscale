@@ -109,6 +109,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 if method == "PUT":
                     req = json.loads(self._body())
                     rel["description"] = req.get("description", rel["description"])
+                    rel["name"] = req.get("name", rel["name"])
                     return self._json(200, rel)
                 return self._reply(405)
             if method == "GET" and link_id is None:

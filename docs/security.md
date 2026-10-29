@@ -35,7 +35,9 @@
 - No privileged containers and no Docker socket are used. QEMU runs in user
   mode, called directly without binfmt registration.
 - Nothing is ever deployed. Devices decide for themselves when to download
-  and install a build.
+  and install a build. Targets with `self_update` add an updater to the
+  binary, which only runs when the device opts in
+  ([self-update.md](self-update.md)).
 
 ## Not covered
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load, validate and resolve Tailscale Tiny build targets from platforms.yml.
+"""Load, validate and resolve Tinyscale build targets from platforms.yml.
 
 Subcommands:
   validate                    validate the configuration
@@ -31,7 +31,7 @@ PROJECT = "tailscale-tiny"
 TOP_LEVEL_KEYS = {"schema_version", "defaults", "os_defaults", "platforms"}
 TARGET_KEYS = {
     "os", "arch", "enabled", "combined", "features", "extra_tags", "strip",
-    "cgo", "compression", "validation", "notes",
+    "cgo", "compression", "validation", "self_update", "notes",
     # architecture variant settings
     "goarm", "goamd64", "go386", "gomips", "gomips64", "goarm64",
     "goriscv64", "goppc64",
@@ -224,6 +224,20 @@ def resolve_target(raw: dict, defaults: dict, os_defaults: dict, index: int) -> 
         raise ConfigError(f"{where}.features: in both add and remove: {', '.join(sorted(overlap))}")
     extra_tags = _str_list(merged.get("extra_tags"), f"{where}.extra_tags", TAG_RE)
 
+    # Self-update replaces `tailscale update` with the overlay in
+    # overlay/cmd/tailscale/cli (docs/self-update.md). It needs upstream's
+    # clientupdate feature for the admin-console and auto-update plumbing.
+    self_update = merged.get("self_update", False)
+    if not isinstance(self_update, bool):
+        raise ConfigError(f"{where}.self_update: expected true or false, got {self_update!r}")
+    if self_update:
+        if goos != "linux" or not combined:
+            raise ConfigError(f"{where}.self_update: only supported for linux targets with combined: true")
+        if "clientupdate" in remove:
+            raise ConfigError(f"{where}.self_update: conflicts with removing 'clientupdate'")
+        if mode == "minimal" and "clientupdate" not in add:
+            add = add + ["clientupdate"]
+
     validation = merged.get("validation") or {}
     fmt = validation.get("format", "elf")
     if fmt not in FORMATS:
@@ -269,6 +283,7 @@ def resolve_target(raw: dict, defaults: dict, os_defaults: dict, index: int) -> 
         "strip": strip,
         "features": {"mode": mode, "add": add, "remove": remove},
         "extra_tags": extra_tags,
+        "self_update": self_update,
         "executable_suffix": ".exe" if goos == "windows" else "",
         "compression": {"enabled": comp_enabled, "tool": tool, "args": comp_args},
         "validation": {

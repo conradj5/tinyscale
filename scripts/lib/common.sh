@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Shared helpers for Tailscale Tiny scripts. Source this file; do not execute.
+# Shared helpers for Tinyscale scripts. Source this file; do not execute.
 
 TT_PROJECT="tailscale-tiny"
 TT_UPSTREAM_REPO="${TT_UPSTREAM_REPO:-tailscale/tailscale}"
