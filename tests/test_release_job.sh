@@ -74,6 +74,8 @@ assert_eq "latest permalink serves binary matching manifest" \
 : >"$tmp/log"
 assert_ok "rerun is idempotent" rel 1.104.4 "$C" linux_arm64 linux_amd64
 assert_eq "rerun adds no links" 0 "$(grep -c 'POST .*assets/links' "$tmp/log" || true)"
+assert_eq "rerun writes nothing" 0 "$(grep -cE '^(POST|PUT) ' "$tmp/log" || true)"
+assert_contains "rerun reports up to date" "$(rel 1.104.4 "$C" linux_arm64 linux_amd64 2>&1)" "Release v1.104.4 is up to date"
 
 echo "release.sh: target added later"
 publish_fake 1.104.4 linux_arm_v7

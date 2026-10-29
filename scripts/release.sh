@@ -125,9 +125,17 @@ elif [[ "$code" != 200 ]]; then
 	die "cannot look up Release ${tag} (HTTP $code)"
 fi
 
-jq -n --rawfile notes "$tmp/notes.md" '{description: $notes}' >"$tmp/update.json"
-code="$(registry_api PUT "${api}/releases/${tag}" "$tmp/updated.json" "$tmp/update.json")"
-[[ "$code" == 200 ]] || die "updating Release ${tag} notes failed (HTTP $code)"
+# Rewrite the notes only when they differ (ignoring trailing whitespace, which
+# GitLab may normalize), so routine reruns change nothing.
+notes_changed=0
+if [[ ! -s "$tmp/existing.json" ]] ||
+	! jq -e --rawfile notes "$tmp/notes.md" \
+		'(.description // "" | sub("\\s+$"; "")) == ($notes | sub("\\s+$"; ""))' "$tmp/existing.json" >/dev/null; then
+	jq -n --rawfile notes "$tmp/notes.md" '{description: $notes}' >"$tmp/update.json"
+	code="$(registry_api PUT "${api}/releases/${tag}" "$tmp/updated.json" "$tmp/update.json")"
+	[[ "$code" == 200 ]] || die "updating Release ${tag} notes failed (HTTP $code)"
+	notes_changed=1
+fi
 
 code="$(registry_api GET "${api}/releases/${tag}/assets/links?per_page=100" "$tmp/links.json")"
 [[ "$code" == 200 ]] || die "cannot list Release ${tag} links (HTTP $code)"
@@ -147,4 +155,8 @@ while IFS= read -r link; do
 		changed=$((changed + 1))
 	fi
 done < <(jq -c '.[]' <<<"$links")
-log "updated Release ${tag}: ${added} link(s) added, ${changed} changed"
+if ((added + changed + notes_changed == 0)); then
+	log "Release ${tag} is up to date"
+else
+	log "updated Release ${tag}: ${added} link(s) added, ${changed} changed, notes $( ((notes_changed)) && echo updated || echo unchanged)"
+fi
