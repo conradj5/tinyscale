@@ -1,0 +1,151 @@
+# platforms.yml — declarative build targets for Tailscale Tiny.
+#
+# Every target inherits `defaults`, then `os_defaults.<goos>`, then its own
+# keys (later layers win; mappings merge recursively, lists are replaced).
+# See docs/platforms.md for the full schema.
+#
+# Adding a target normally means adding (or enabling) an entry here; the CI
+# pipeline is generated from this file and needs no changes.
+
+schema_version: 1
+
+defaults:
+  enabled: false
+
+  # Build tailscaled with the CLI embedded (upstream `ts_include_cli`).
+  # Only enable where upstream supports the combined executable; see
+  # os_defaults below.
+  combined: false
+
+  # Feature selection, resolved with upstream's ./cmd/featuretags tool so
+  # dependencies between features are handled by upstream itself.
+  #   mode: minimal -> `featuretags --min --add=<add>` minus <remove>
+  #   mode: full    -> upstream default feature set minus <remove>
+  features:
+    mode: minimal
+    add:
+      - cli               # only meaningful when combined: true
+      - osrouter          # configure OS routes / addresses (kernel TUN)
+      - nattraversal      # STUN + disco hole punching (implies udptransport)
+      - portmapper        # NAT-PMP / PCP / UPnP
+      - dns               # MagicDNS + OS DNS configuration
+      - useroutes         # accept subnet routes
+      - useexitnode       # use an exit node
+      - advertiseroutes   # act as a subnet router
+      - advertiseexitnode # act as an exit node
+      - ipnbus            # interactive `tailscale up` login flow
+      - health            # health warnings in `tailscale status`
+      - tailnetlock       # required to join tailnets that use Tailnet Lock
+      - bakedroots        # fallback CA roots for hosts without a CA bundle
+      - unixsocketidentity # per-user LocalAPI access control
+    remove: []
+
+  # Extra Go build tags appended after the feature tags.
+  extra_tags: []
+
+  # Strip symbol tables and DWARF (-ldflags "-s -w").
+  strip: true
+
+  # Explicit CGO setting. Tailscale Tiny always builds with CGO disabled
+  # unless a target overrides this.
+  cgo: false
+
+  compression:
+    enabled: false
+    tool: upx
+    args: ["--best", "--lzma"]
+
+  validation:
+    # Expected binary container format: elf | macho | pe
+    format: elf
+    # Require no dynamic interpreter / shared library dependencies.
+    static: true
+    # Runtime smoke test: auto (qemu for linux, native if host matches),
+    # qemu, native, or none.
+    smoke_test: auto
+    # Size limits; accepts plain bytes or KiB/MiB/GiB/KB/MB/GB suffixes.
+    # null disables the check.
+    max_size: null
+    max_compressed_size: null
+
+os_defaults:
+  linux:
+    combined: true
+    features:
+      add:
+        - cli
+        - osrouter
+        - nattraversal
+        - portmapper
+        - dns
+        - useroutes
+        - useexitnode
+        - advertiseroutes
+        - advertiseexitnode
+        - ipnbus
+        - health
+        - tailnetlock
+        - bakedroots
+        - unixsocketidentity
+        - iptables        # netfilter rules (nftables support is built in)
+        - sdnotify        # systemd Type=notify, used by upstream's unit file
+        - resolved        # systemd-resolved DNS integration
+    compression:
+      enabled: true
+  freebsd:
+    combined: false
+  darwin:
+    combined: false
+    validation:
+      format: macho
+      # macOS executables always link libSystem dynamically.
+      static: false
+  windows:
+    combined: false
+    validation:
+      format: pe
+      # Windows executables always import system DLLs.
+      static: false
+
+platforms:
+  - os: linux
+    arch: arm64
+    enabled: true
+    validation:
+      max_size: 40MiB
+      max_compressed_size: 12MiB
+
+  - os: linux
+    arch: amd64
+    enabled: true
+    validation:
+      max_size: 40MiB
+      max_compressed_size: 12MiB
+
+  - os: linux
+    arch: arm
+    goarm: "7"
+    enabled: false
+    validation:
+      max_size: 40MiB
+      max_compressed_size: 12MiB
+
+  - os: linux
+    arch: riscv64
+    enabled: false
+    # UPX does not support riscv64 executables.
+    compression:
+      enabled: false
+
+  - os: freebsd
+    arch: amd64
+    enabled: false
+    # Not executable on GitLab's Linux runners; format checks only.
+    validation:
+      smoke_test: none
+
+  - os: darwin
+    arch: arm64
+    enabled: false
+    validation:
+      smoke_test: none

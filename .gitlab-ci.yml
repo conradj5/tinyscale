@@ -1,0 +1,125 @@
+# Tailscale Tiny — GitLab CI/CD (GitLab Free compatible).
+#
+# Parent pipeline:
+#   test            unit tests + shellcheck (every pipeline)
+#   detect-release  newest stable upstream release, or $TAILSCALE_VERSION
+#   generate        skips already-published targets; writes child pipeline
+#   build           triggers the generated child pipeline
+# Child pipeline (generated from platforms.yml by tools/platforms.py):
+#   build:<target>    build, compress, validate          (one job per target)
+#   publish:<target>  upload to the Generic Package Registry (needs its build)
+#   release           GitLab Release + tag v<version> once every enabled
+#                     target is published (links stay at permalink/latest)
+#
+# Run manually from Build > Pipelines > Run pipeline, or on a schedule.
+# Binaries are only published (registry + Release); nothing is deployed.
+# Tag pipelines are not run (see workflow rules), so creating the Release
+# tag does not start another pipeline.
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
+    # Projects in a group pull every image through that group's Dependency
+    # Proxy. A project-level IMAGE_PREFIX variable takes precedence (set it
+    # to an empty value to pull from Docker Hub directly).
+    - if: ($CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH) && $CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX
+      variables:
+        IMAGE_PREFIX: "${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH
+
+variables:
+  TAILSCALE_VERSION:
+    value: ""
+    description: "Stable upstream version to build, e.g. 1.104.4. Blank selects the newest stable release."
+  TARGETS:
+    value: ""
+    description: "Comma-separated target ids from platforms.yml (e.g. linux_arm64). Blank builds all enabled targets."
+  FORCE_REBUILD:
+    value: "false"
+    options: ["false", "true"]
+    description: "Rebuild and republish even if the target/version is already published."
+  PUBLISH:
+    value: "true"
+    options: ["true", "false"]
+    description: "Publish validated artifacts to the Generic Package Registry."
+  # Optional overrides (set as CI/CD variables, never in this file):
+  #   GITHUB_TOKEN  read-only token to avoid GitHub API rate limits (masked)
+  #   IMAGE_PREFIX  registry prefix for every image (with trailing slash).
+  #                 Defaults to the group's Dependency Proxy (workflow rules
+  #                 above); an empty value means Docker Hub.
+  #   GO_IMAGE      full build image reference, used verbatim
+  # One Alpine release for every job: alpine:<v> and golang:<go>-alpine<v>.
+  # Keep in sync with TT_ALPINE_VERSION in scripts/lib/common.sh (tested).
+  ALPINE_VERSION: "3.24"
+  IMAGE_PREFIX: ""
+  ALPINE_IMAGE: "${IMAGE_PREFIX}alpine:${ALPINE_VERSION}"
+
+stages:
+  - test
+  - prepare
+  - build
+
+# Release jobs run for manual (web), API, trigger and scheduled pipelines only.
+.release-rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE =~ /^(web|api|trigger|schedule|pipeline)$/
+
+test:
+  stage: test
+  image: $ALPINE_IMAGE
+  interruptible: true
+  rules:
+    # Scheduled runs only look for new releases; tests already ran on push.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - when: on_success
+  script:
+    - sh scripts/ci/install-deps.sh test
+    - tests/run.sh
+
+detect-release:
+  stage: prepare
+  image: $ALPINE_IMAGE
+  extends: .release-rules
+  needs:
+    - job: test
+      optional: true
+  script:
+    - sh scripts/ci/install-deps.sh generate
+    - scripts/detect-release.sh --output release.env
+    - cat release.env
+  artifacts:
+    reports:
+      dotenv: release.env
+    paths:
+      - release.env
+    expire_in: 1 week
+
+generate:
+  stage: prepare
+  image: $ALPINE_IMAGE
+  extends: .release-rules
+  needs:
+    - job: detect-release
+      artifacts: true
+  script:
+    - sh scripts/ci/install-deps.sh generate
+    - scripts/ci/generate-job.sh
+  artifacts:
+    paths:
+      - child-pipeline.yml
+      - build-plan.txt
+    expire_in: 1 week
+
+build:
+  stage: build
+  extends: .release-rules
+  needs:
+    - job: generate
+      artifacts: true
+  trigger:
+    include:
+      - artifact: child-pipeline.yml
+        job: generate
+    strategy: depend

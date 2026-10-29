@@ -1,0 +1,15 @@
+# Build outputs and caches
+/dist/
+/work/
+/.cache/
+work-*.log
+
+# CI-generated files
+/child-pipeline.yml
+/build-plan.txt
+/release.env
+
+# Local upstream checkout (the pipeline fetches its own verified copy)
+/tailscale/
+
+__pycache__/

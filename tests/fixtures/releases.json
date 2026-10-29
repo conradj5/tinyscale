@@ -1,0 +1,12 @@
+[
+  {"tag_name": "v1.105.0", "draft": false, "prerelease": false},
+  {"tag_name": "v1.106.0-pre", "draft": false, "prerelease": true},
+  {"tag_name": "v1.106.0", "draft": true, "prerelease": false},
+  {"tag_name": "v1.104.4", "draft": false, "prerelease": false},
+  {"tag_name": "v1.104.4-rc1", "draft": false, "prerelease": false},
+  {"tag_name": "v1.104.2", "draft": false, "prerelease": false},
+  {"tag_name": "v1.98.10", "draft": false, "prerelease": false},
+  {"tag_name": "v1.102.5", "draft": false, "prerelease": true},
+  {"tag_name": "v1.102.4", "draft": false, "prerelease": false},
+  {"tag_name": "latest", "draft": false, "prerelease": false}
+]
