@@ -54,6 +54,16 @@ assert_eq "manifest version" VERSION=1.104.4 "$(grep '^VERSION=' "$m")"
 assert_eq "manifest upx file" BIN_UPX_FILE=tailscale-tiny_1.104.4_linux_arm64.upx "$(grep '^BIN_UPX_FILE=' "$m")"
 assert_eq "manifest upx sha" "BIN_UPX_SHA256=$(sha256sum "${m%.manifest}.upx" | cut -d' ' -f1)" "$(grep '^BIN_UPX_SHA256=' "$m")"
 assert_eq "manifest has no spaces or quotes" 0 "$(grep -c "[ \"']" "$m" || true)"
+# docs/manifest.md is the published contract: FORMAT comes first, and every
+# key the generator can emit (combined and separate executables) is documented.
+assert_eq "manifest starts with FORMAT=1" FORMAT=1 "$(sed -n 1p "$m")"
+sep="$tmp/separate.metadata.json"
+jq '.target.combined = false | .files += [.files[] | .component = "tailscale"]' "${m%.manifest}.metadata.json" >"$sep"
+undocumented=""
+for k in $({ cat "$m"; "$ROOT/scripts/manifest.sh" "$sep"; } | cut -d= -f1 | sort -u); do
+	grep -qF "\`$k\`" "$ROOT/docs/manifest.md" || undocumented+="$k "
+done
+assert_eq "every manifest key is documented in docs/manifest.md" "" "$undocumented"
 
 echo "release.sh"
 assert_ok "deferred while a target is unpublished" rel 1.104.4 "$C" linux_arm64 linux_amd64

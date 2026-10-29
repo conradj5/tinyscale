@@ -168,5 +168,6 @@ This has not been measured on GitLab.com runners yet. As a local reference,
 a cold linux/arm64 build in Docker (module download, compile, UPX `--best
 --lzma`, QEMU tests) took well under a minute on a workstation. Expect several
 times that on a small shared runner. Scheduled runs with nothing new to build
-use only the `detect-release` and `generate` jobs plus one placeholder child
-job.
+use only the `detect-release` and `generate` jobs plus the child pipeline's
+`release` job, which confirms the Release is up to date (about a minute in
+total on a self-hosted runner).

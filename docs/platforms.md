@@ -54,6 +54,44 @@ recursively, and lists are **replaced**, not appended:
 | `validation.max_compressed_size` | size | Limit for compressed executables. |
 | `notes` | any | Free-form; ignored. |
 
+## Default feature profile
+
+Tailscale can leave features out at build time. Tailscale Tiny never keeps
+its own list of `ts_omit_*` tags: it asks upstream's `./cmd/featuretags`
+for the exact release being built, so upstream resolves dependencies.
+
+The default Linux profile (`features.mode: minimal`) keeps `cli` (combined
+executable), `osrouter`, `nattraversal`, `portmapper`, `dns`, `useroutes`,
+`useexitnode`, `advertiseroutes`, `advertiseexitnode`, `ipnbus`, `health`,
+`tailnetlock`, `bakedroots`, `unixsocketidentity`, `iptables`, `sdnotify`
+and `resolved`, plus whatever upstream marks as their dependencies (for
+example `c2n` and `peerapiserver`). nftables support is always built into
+Linux executables.
+
+It **leaves out**, among others: userspace networking (netstack,
+`--tun=userspace-networking`), Tailscale SSH, Serve and Funnel, Taildrop,
+the web client, Drive, App Connectors, the peer relay server, log upload,
+auto-update, MDM/syspolicy and NetworkManager/D-Bus integration.
+
+To get a feature back, add it to `features.add` for a target or OS. To
+start from upstream's full set and remove specific features, use
+`features.mode: full`.
+
+## Measured sizes
+
+Tailscale 1.104.4, Go 1.27.3, UPX 5.2.0, default profile:
+
+| Target | Executable | Uncompressed | UPX `--best --lzma` | Runtime smoke test |
+|---|---|---:|---:|---|
+| `linux_arm64` (enabled) | combined | 15.0 MiB | 4.0 MiB | qemu-aarch64 |
+| `linux_amd64` (enabled) | combined | 16.3 MiB | 4.9 MiB | native |
+| `linux_arm_v7` | combined | 15.5 MiB | 4.0 MiB | qemu-arm |
+| `linux_riscv64` | combined | 14.4 MiB | n/a (UPX unsupported) | qemu-riscv64 |
+| `freebsd_amd64` | tailscaled + tailscale | 13.9 + 9.8 MiB | n/a | none |
+| `darwin_arm64` | tailscaled + tailscale | 13.2 + 9.4 MiB | n/a | none |
+
+Upstream's full-featured combined linux/arm64 executable is about 42 MB.
+
 ## Feature names
 
 Feature names are checked at build time against

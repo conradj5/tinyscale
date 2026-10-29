@@ -49,3 +49,6 @@ compare.
 - UPX output is integrity-tested and executed, but some security products
   flag UPX-packed executables. The uncompressed file is always published
   too.
+- UPX executables unpack into RAM at startup, costing roughly their
+  uncompressed size in memory that can't be reclaimed. On devices short of
+  RAM, use the uncompressed file.
