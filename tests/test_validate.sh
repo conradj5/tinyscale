@@ -19,7 +19,7 @@ assert_eq "result written" true "$([[ -f "$tmp/r1.json" ]] && echo true || echo 
 assert_eq "format check failed" fail "$(jq -r '.checks[] | select(.check == "format") | .status' "$tmp/r1.json")"
 assert_eq "overall result failed" false "$(jq -r .passed "$tmp/r1.json")"
 assert_eq "sha256 recorded" "$(sha256sum "$host_exe" | awk '{print $1}')" "$(jq -r .sha256 "$tmp/r1.json")"
-if readelf -lW "$host_exe" 2>/dev/null | grep -q INTERP; then
+if readelf -lW "$host_exe" 2>/dev/null | grep INTERP >/dev/null; then
 	assert_eq "dynamic binary fails static check" fail "$(jq -r '.checks[] | select(.check == "static") | .status' "$tmp/r1.json")"
 fi
 

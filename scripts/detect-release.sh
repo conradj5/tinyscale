@@ -71,7 +71,7 @@ if [[ -n "$version" ]]; then
 	release_is_stable "v${version}" <"$tmp/releases.json" ||
 		die "v${version} is not a published stable release (draft, prerelease, or missing)"
 else
-	version="$(stable_release_tags <"$tmp/releases.json" | head -n1)"
+	version="$(stable_release_tags <"$tmp/releases.json" | sed -n 1p)"
 	version="${version#v}"
 	[[ -n "$version" ]] || die "no stable release found in GitHub metadata"
 fi

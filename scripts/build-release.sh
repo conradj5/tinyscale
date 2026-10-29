@@ -132,7 +132,7 @@ done) >"$out/${base}.sha256"
 
 upx_version=null
 if [[ "$compress" == true ]] && command -v upx >/dev/null 2>&1; then
-	upx_version="$(upx --version | head -n1 | jq -R .)"
+	upx_version="$(upx --version | sed -n 1p | jq -R .)"
 fi
 files_json="$(if ((${#results[@]})); then jq -s . "${results[@]}"; else echo '[]'; fi)"
 jq -n \

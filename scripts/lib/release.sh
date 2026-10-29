@@ -24,7 +24,7 @@ stable_release_tags() {
 # when TAG is one of its stable releases.
 release_is_stable() {
 	local tag="$1"
-	stable_release_tags | grep -Fxq -- "$tag"
+	stable_release_tags | grep -Fx -- "$tag" >/dev/null
 }
 
 # tag_commit_from_ls_remote TAG: read `git ls-remote --tags` output on stdin

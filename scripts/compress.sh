@@ -31,7 +31,7 @@ upx)
 	tmp="${output}.tmp.$$"
 	trap 'rm -f -- "$tmp"' EXIT
 	rm -f -- "$tmp"
-	log "$(upx --version | head -n1): ${args[*]} $(basename "$input")"
+	log "$(upx --version | sed -n 1p): ${args[*]} $(basename "$input")"
 	upx -q "${args[@]}" -o "$tmp" -- "$input" >&2
 	upx -q -t -- "$tmp" >&2
 	mv -f -- "$tmp" "$output"

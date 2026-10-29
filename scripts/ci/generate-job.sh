@@ -28,7 +28,7 @@ mapfile -t enabled < <(platforms_py list)
 if [[ -n "${TARGETS:-}" ]]; then
 	IFS=',' read -r -a requested <<<"${TARGETS// /}"
 	for id in "${requested[@]}"; do
-		printf '%s\n' "${enabled[@]}" | grep -Fxq -- "$id" ||
+		printf '%s\n' "${enabled[@]}" | grep -Fx -- "$id" >/dev/null ||
 			die "TARGETS: '$id' is not an enabled target (enabled: ${enabled[*]})"
 	done
 else

@@ -53,6 +53,14 @@ RELEASE_TAG=v1.104.4
 RELEASE_COMMIT=27047635f237d1f3e0b08c0f487674757f30d2f7
 RELEASE_GO_VERSION=1.27.3
 RELEASE_GO_IMAGE=golang:1.27.3-alpine3.24" "$out"
+# More tag output than a pipe buffer holds: readers that stop early (head,
+# grep -q) would kill jq with SIGPIPE and, under pipefail, fail with 141.
+big="${TMPDIR:-/tmp}/tt-big-releases.$$.json"
+jq '. + [range(20000) | {tag_name: "v1.0.\(.)", draft: false, prerelease: false}]' "$FIXTURES/releases.json" >"$big"
+out="$(env -u TAILSCALE_VERSION -u GO_IMAGE TT_RELEASES_JSON="$big" "$ROOT/scripts/detect-release.sh" 2>/dev/null)"
+assert_contains "large release list (no SIGPIPE)" "$out" "RELEASE_VERSION=1.104.4"
+assert_ok "release_is_stable on large list" release_is_stable v1.104.4 <"$big"
+rm -f "$big"
 out="$(GO_IMAGE=registry.example/go:1 "$ROOT/scripts/detect-release.sh" --version v1.104.2 2>/dev/null)"
 assert_contains "explicit version" "$out" "RELEASE_COMMIT=2222222222222222222222222222222222222222"
 assert_contains "GO_IMAGE override" "$out" "RELEASE_GO_IMAGE=registry.example/go:1"

@@ -85,7 +85,7 @@ assert_eq "Release created" "Tailscale Tiny ${RELEASE_VERSION}" "$(jq -r --arg t
 assert_eq "tag at pipeline commit" "$CI_COMMIT_SHA" "$(jq -r --arg t "v$RELEASE_VERSION" '.tags[$t]' <<<"$state")"
 
 # Router-style download of the first enabled target.
-first="$(python3 -s "$ROOT/tools/platforms.py" --config "$ROOT/platforms.yml" list | head -n1)"
+first="$(python3 -s "$ROOT/tools/platforms.py" --config "$ROOT/platforms.yml" list | sed -n 1p)"
 latest="$CI_PROJECT_URL/-/releases/permalink/latest/downloads"
 manifest="$(curl -sfL -H "JOB-TOKEN: $CI_JOB_TOKEN" "$latest/${first}.manifest")"
 assert_contains "latest manifest version" "$manifest" "VERSION=${RELEASE_VERSION}"
