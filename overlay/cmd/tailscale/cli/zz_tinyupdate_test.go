@@ -165,8 +165,8 @@ func TestTinyUpdateInstallsNewerPlain(t *testing.T) {
 	if got := e.installed(t); got != string(tinyRel2.plain) {
 		t.Errorf("installed %q, want the uncompressed 1.106.0", got)
 	}
-	if b, err := os.ReadFile(e.u.exe + ".old"); err != nil || string(b) != string(tinyRel1.plain) {
-		t.Errorf("backup = %q, %v; want previous executable", b, err)
+	if _, err := os.Stat(e.u.exe + ".old"); !os.IsNotExist(err) {
+		t.Errorf("backup still present after a successful restart (stat err %v)", err)
 	}
 	if !e.restarted {
 		t.Error("service not restarted")
@@ -371,5 +371,30 @@ func TestTinyUpdateSyslog(t *testing.T) {
 	}
 	if n := len(logged); n == 0 || !strings.HasPrefix(logged[n-1], "Update failed: ") || !strings.Contains(logged[n-1], "SHA-256 mismatch") {
 		t.Errorf("system log = %q, want it to end with the failure", logged)
+	}
+}
+
+func TestTinyUpdateKeepsBackupWithoutRestart(t *testing.T) {
+	srv := newTinyTestServer(t, "1.106.0", tinyRel1, tinyRel2)
+	for name, restartErr := range map[string]error{
+		"no service":     errTinyNoService,
+		"restart failed": errors.New("exit status 1"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newTinyTestEnv(t, srv, "1.104.4", tinyRel1.plain)
+			e.u.restart = func() error { return restartErr }
+			if err := e.u.run("", false); err != nil {
+				t.Fatalf("run: %v\n%s", err, e.out)
+			}
+			if got := e.installed(t); got != string(tinyRel2.plain) {
+				t.Errorf("installed %q, want 1.106.0", got)
+			}
+			if b, err := os.ReadFile(e.u.exe + ".old"); err != nil || string(b) != string(tinyRel1.plain) {
+				t.Errorf("backup = %q, %v; want the previous executable", b, err)
+			}
+			if !strings.Contains(e.out.String(), "kept as "+e.u.exe+".old") {
+				t.Errorf("output does not mention the backup:\n%s", e.out)
+			}
+		})
 	}
 }

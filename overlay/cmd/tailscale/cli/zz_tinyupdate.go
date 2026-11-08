@@ -269,25 +269,39 @@ func (u *tinyUpdater) run(wantVersion string, dryRun bool) (retErr error) {
 		return fmt.Errorf("downloaded executable reports version %q, expected %s", got, newVer)
 	}
 
-	// Keep the previous executable for manual rollback. A hard link costs no
-	// space; if it isn't possible, continue without a backup.
+	// Keep the previous executable for manual rollback until tailscaled has
+	// restarted on the new one. A hard link costs no space; if it isn't
+	// possible, continue without a backup.
 	backup := u.exe + ".old"
 	os.Remove(backup)
+	backedUp := true
 	if err := os.Link(u.exe, backup); err != nil {
 		u.logf("Note: could not keep the previous executable as %s: %v", backup, err)
+		backedUp = false
 	}
 	if err := os.Rename(tmp, u.exe); err != nil {
 		return fmt.Errorf("installing %s: %w", u.exe, err)
 	}
 	u.logf("Installed Tailscale %s to %s.", newVer, u.exe)
 
+	kept := ""
+	if backedUp {
+		kept = " The previous executable is kept as " + backup + "."
+	}
 	switch err := u.restart(); {
 	case errors.Is(err, errTinyNoService):
-		u.logf("Restart tailscaled to finish the update.")
+		u.logf("Restart tailscaled to finish the update.%s", kept)
 	case err != nil:
-		u.logf("Updated, but restarting tailscaled failed: %v. Restart it to finish the update.", err)
+		u.logf("Updated, but restarting tailscaled failed: %v. Restart it to finish the update.%s", err, kept)
 	default:
 		u.logf("Restarted tailscaled.")
+		// The backup is only for rollback; once the new executable is
+		// running it would just take up space.
+		if backedUp {
+			if err := os.Remove(backup); err != nil {
+				u.logf("Note: could not remove %s: %v", backup, err)
+			}
+		}
 	}
 	return nil
 }

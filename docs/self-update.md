@@ -45,6 +45,9 @@ The replacement `tailscale update`:
 5. Keeps the previous executable as `<path>.old` (a hard link, so no extra
    space), atomically replaces the executable, and restarts tailscaled via
    systemd (`tailscaled.service`) or `/etc/init.d/*tailscale`.
+6. Deletes `<path>.old` once the restart succeeds. If there's no service
+   to restart, or the restart fails, it keeps the file for a manual
+   rollback.
 
 Flags: `--yes`, `--dry-run`, `--version X.Y.Z`.
 
@@ -143,8 +146,10 @@ A token on a device can be read by anyone who gains root on it. Limit it to
   next scheduled run. In between, `tailscale update` reports the device as
   up to date.
 - **No automatic rollback.** The new executable is tested before it's
-  installed, and `<path>.old` allows a manual rollback, but if tailscaled
-  then fails to start, nothing reverts it.
+  installed, but if tailscaled then fails to start, nothing reverts it. A
+  successful restart only means the service manager accepted the command,
+  and `<path>.old` is gone by then. Back up the executable yourself before
+  updating if you need a guaranteed rollback.
 - **Unsigned.** Integrity rests on HTTPS to the GitLab instance and the
   manifest's SHA-256 ([security.md](security.md)).
 - **Depends on upstream internals.** The overlay uses one unexported
