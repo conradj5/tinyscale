@@ -22,7 +22,9 @@ workflow:
       when: never
     # Projects in a group pull every image through that group's Dependency
     # Proxy. A project-level IMAGE_PREFIX variable takes precedence (set it
-    # to an empty value to pull from Docker Hub directly).
+    # to docker.io/library/ to pull from Docker Hub directly). Projects in a
+    # personal namespace must set it: GitLab sets the prefix variable there
+    # too, but personal namespaces have no Dependency Proxy (docs/ci.md).
     - if: ($CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_BRANCH) && $CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX
       variables:
         IMAGE_PREFIX: "${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/"

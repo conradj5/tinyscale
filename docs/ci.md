@@ -44,7 +44,7 @@ requests run `test` only.
 | `TARGETS` | (blank) | Comma-separated subset of enabled target ids. |
 | `FORCE_REBUILD` | `false` | Build even if already published. Identical files are not re-uploaded; changed files are added as new package files (or rejected if duplicates are disabled). |
 | `PUBLISH` | `true` | `false` builds and validates only. Artifacts stay downloadable from the job for 2 weeks. |
-| `IMAGE_PREFIX` | group Dependency Proxy | Registry prefix for every job image; see [Container images](#container-images). Set it as a CI/CD variable, not per run. |
+| `IMAGE_PREFIX` | group Dependency Proxy | Registry prefix for every job image; see [Container images](#container-images). Projects in a personal namespace must set it to `docker.io/library/`. Set it as a CI/CD variable, not per run. |
 | `GO_IMAGE` | derived | Full build image reference, used verbatim (must be Alpine-based). |
 
 Detection writes its results as `RELEASE_*` dotenv variables. These are
@@ -92,9 +92,7 @@ Docker Hub is briefly unavailable.
 4. **Nothing to configure in the project.** For a project in a group,
    `.gitlab-ci.yml` sets `IMAGE_PREFIX` to
    `$CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX/` through its workflow
-   rules (the proxy of the group that directly contains the project). In a
-   personal namespace the variable does not exist and images come from
-   Docker Hub.
+   rules (the proxy of the group that directly contains the project).
 5. **Run a pipeline and check the job logs.** The first lines should show
    `Pulling docker image <gitlab host>:443/<group path>/dependency_proxy/containers/alpine:3.24`.
    Cached images are listed under the group's *Operate › Dependency Proxy*.
@@ -102,9 +100,16 @@ Docker Hub is briefly unavailable.
 Runners log in to the proxy automatically, so no token is needed in the
 pipeline. To override the default, add a project CI/CD variable
 `IMAGE_PREFIX` (*Settings › CI/CD › Variables*; not protected, not masked):
-an empty value pulls from Docker Hub directly, and
+`docker.io/library/` pulls from Docker Hub directly, and
 `$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/` uses the top-level group's proxy
 instead. Project variables take precedence over the workflow rule.
+
+**Projects in a personal namespace must set `IMAGE_PREFIX`.** The Dependency
+Proxy only exists for groups, but GitLab still sets
+`CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX` (to
+`<host>:443/<username>/dependency_proxy/containers`), and pipelines can't
+tell the two cases apart. Without the variable, every job fails to pull its
+image with a 404 page. Set `IMAGE_PREFIX` to `docker.io/library/`.
 
 ## Releases and tags
 
