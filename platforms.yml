@@ -128,6 +128,15 @@ platforms:
       max_size: 40MiB
       max_compressed_size: 12MiB
 
+  # MIPS 24Kc routers without an FPU, e.g. MT7628 (OpenWrt mipsel_24kc).
+  - os: linux
+    arch: mipsle
+    gomips: softfloat
+    enabled: true
+    validation:
+      max_size: 40MiB
+      max_compressed_size: 12MiB
+
   - os: linux
     arch: arm
     goarm: "7"

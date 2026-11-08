@@ -103,9 +103,9 @@ and architectures it supports, and only Linux targets can run under QEMU in
 CI. A target can override features, compression, size limits and validation.
 See [docs/platforms.md](docs/platforms.md).
 
-Defined targets: `linux_arm64` and `linux_amd64` are enabled. `linux_arm_v7`,
-`linux_riscv64`, `freebsd_amd64` and `darwin_arm64` are defined but
-disabled.
+Defined targets: `linux_arm64`, `linux_amd64` and `linux_mipsle_softfloat`
+are enabled. `linux_arm_v7`, `linux_riscv64`, `freebsd_amd64` and
+`darwin_arm64` are defined but disabled.
 
 ## Documentation
 
