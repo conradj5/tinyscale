@@ -65,6 +65,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore Go modules
+        id: go-mod
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/go-mod
+          key: gomod-v1-${{ runner.os }}-${{ runner.arch }}-${{ needs.test.outputs.commit }}
+          restore-keys: gomod-v1-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Cache Go build outputs
+        uses: actions/cache@v5
+        with:
+          path: .cache/go-build
+          key: gobuild-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.id }}-${{ needs.test.outputs.go_image }}-${{ needs.test.outputs.commit }}-${{ hashFiles('platforms.yml', 'scripts/**', 'overlay/**') }}
+          restore-keys: gobuild-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.id }}-${{ needs.test.outputs.go_image }}-${{ needs.test.outputs.commit }}-
+
       - name: Build and validate target
         env:
           GO_IMAGE: ${{ needs.test.outputs.go_image }}
@@ -83,6 +98,13 @@ jobs:
               sh scripts/ci/install-deps.sh build "$QEMU"
               exec scripts/ci/build-job.sh
             '
+
+      - name: Save Go modules
+        if: matrix.id == fromJSON(needs.test.outputs.targets)[0].id && steps.go-mod.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/go-mod
+          key: ${{ steps.go-mod.outputs.cache-primary-key }}
 
       - name: Upload validated binaries
         uses: actions/upload-artifact@v6

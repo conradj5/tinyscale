@@ -185,6 +185,10 @@ branch to publish the latest stable upstream version. The separate
 can also be run manually. Both use the same check and release workflow.
 When the version is already published, the check skips the build jobs.
 
+GitHub build jobs share a Go module cache across targets and runs. Each
+target also has its own Go compiler cache, scoped to the Go image and
+upstream commit.
+
 The release workflow reuses the parallel CI builds. After all targets pass,
 it verifies the artifacts, uploads them to a draft, and checks each uploaded
 asset before publishing it as latest. Devices use stable manifest asset
