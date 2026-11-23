@@ -39,14 +39,20 @@ while IFS= read -r target; do
 done <<< "$targets"
 
 endpoint="repos/$GITHUB_REPOSITORY/releases"
+title="Tinyscale $RELEASE_VERSION"
+notes="Validated Tinyscale builds for Tailscale $RELEASE_VERSION (upstream commit $RELEASE_COMMIT)."
 release="$(gh api --paginate "$endpoint?per_page=100" |
-	jq -cs --arg tag "$tag" 'add | map(select(.tag_name == $tag)) | first // empty')"
+	jq -cs --arg tag "$tag" --arg sha "$GITHUB_SHA" --arg title "$title" --arg notes "$notes" '
+		add | ((map(select(.tag_name == $tag)) | first) //
+			(map(select(.draft == true and ((.tag_name // "") | test("^(untagged-|$)"))
+				and .target_commitish == $sha and .name == $title and .body == $notes)) | first)) // empty
+	')"
 if [[ -n "$release" ]]; then
 	jq -e --arg sha "$GITHUB_SHA" '.draft == true and .target_commitish == $sha' <<< "$release" >/dev/null ||
 		die "$tag already exists and is published or belongs to a different source commit"
 fi
 
-# An existing tag takes precedence over --target when GitHub publishes a release.
+# An existing tag takes precedence over the target commit when GitHub publishes.
 refs="$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}")"
 if [[ -n "$refs" ]]; then
 	tag_commit_from_ls_remote "$tag" <<< "$refs" | grep -Fxq "$GITHUB_SHA" ||
@@ -54,19 +60,33 @@ if [[ -n "$refs" ]]; then
 fi
 
 if [[ -z "$release" ]]; then
-	gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title "Tinyscale $RELEASE_VERSION" \
-		--notes "Validated Tinyscale builds for Tailscale $RELEASE_VERSION (upstream commit $RELEASE_COMMIT)."
-	release="$(gh api --paginate "$endpoint?per_page=100" |
-		jq -ces --arg tag "$tag" 'add | map(select(.tag_name == $tag and .draft == true)) | first')"
+	release="$(gh api --method POST "$endpoint" -f tag_name="$tag" -f target_commitish="$GITHUB_SHA" \
+		-f name="$title" -f body="$notes" -F draft=true)"
 fi
 
-gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber "$stage"/*
-id="$(jq -er '.id' <<< "$release")"
-uploaded="$(gh api --paginate "$endpoint/$id/assets?per_page=100" | jq -cs 'add')"
+id="$(jq -er 'select(.draft == true) | .id | select(type == "number")' <<< "$release")"
+assets_endpoint="$endpoint/$id/assets"
+upload_url="https://uploads.github.com/$assets_endpoint"
+uploaded="$(gh api --paginate "$assets_endpoint?per_page=100" | jq -cs 'add')"
 for file in "$stage"/*; do
+	name="${file##*/}"
 	digest="$(sha256sum "$file")"
-	jq -e --arg name "${file##*/}" --arg digest "sha256:${digest%% *}" '
+	digest="sha256:${digest%% *}"
+	if jq -e --arg name "$name" --arg digest "$digest" '
 		any(.[]; .name == $name and .state == "uploaded" and .digest == $digest)
-	' <<< "$uploaded" >/dev/null || die "upload verification failed for ${file##*/}"
+	' <<< "$uploaded" >/dev/null; then
+		continue
+	fi
+	asset_id="$(jq -r --arg name "$name" '.[] | select(.name == $name) | .id' <<< "$uploaded")"
+	if [[ -n "$asset_id" ]]; then
+		gh api --method DELETE "$endpoint/assets/$asset_id"
+	fi
+	curl --fail-with-body --silent --show-error \
+		-H "Authorization: Bearer ${GH_TOKEN:?}" -H "Content-Type: application/octet-stream" \
+		--data-binary "@$file" "$upload_url?name=$name" |
+		jq -e --arg name "$name" --arg digest "$digest" '
+			.name == $name and .state == "uploaded" and .digest == $digest
+		' >/dev/null || die "upload verification failed for $name"
 done
-gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+gh api --method PATCH "$endpoint/$id" -f tag_name="$tag" -f target_commitish="$GITHUB_SHA" \
+	-F draft=false -f make_latest=true --jq .html_url
