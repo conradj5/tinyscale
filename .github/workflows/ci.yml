@@ -27,6 +27,8 @@ jobs:
 
       - name: Build and validate enabled targets
         if: github.event_name != 'pull_request'
+        env:
+          TT_UPDATE_URL: ${{ github.server_url }}/${{ github.repository }}/releases
         run: make build
 
       - name: Upload validated binaries

@@ -32,13 +32,15 @@ For a `self_update` target, the build:
 
 The replacement `tailscale update`:
 
-1. Reads `<releases URL>/permalink/latest/downloads/<target>.manifest`
-   ([manifest.md](manifest.md)), or the pinned `v<version>` manifest with
-   `--version`.
+1. Reads [the target manifest](manifest.md) from GitLab's
+   `/permalink/latest/downloads/<target>.manifest` or public GitHub's
+   `/latest/download/<target>.manifest`. With `--version`, it fetches the
+   manifest from the requested tag.
 2. Does nothing if the running version is the same or newer (unless
    `--version` is given).
 3. Downloads from the pinned `v<version>` path, keeping the installed
    variant (UPX or uncompressed), and checks the size and SHA-256.
+   GitHub assets use the binary filename in the manifest.
 4. Runs the new executable with `--version` and requires the expected
    version. This also proves it runs on the device's CPU and, for UPX, that
    it unpacks in the memory available.
@@ -75,11 +77,15 @@ tailscaled's environment.
 
 | Variable | Meaning |
 |---|---|
-| `TT_UPDATE_URL` | Releases base URL, e.g. `https://gitlab.example.com/group/tinyscale/-/releases`. |
+| `TT_UPDATE_URL` | Releases base URL, e.g. `https://gitlab.example.com/group/tinyscale/-/releases` or `https://github.com/OWNER/REPO/releases`. |
 | `TT_UPDATE_TOKEN_FILE` | File containing a GitLab token, sent as `PRIVATE-TOKEN` (only to the URL's host, never to redirect targets). Needed when the project isn't public. |
 | `TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE` | Upstream setting: `true` allows updates from the admin console. Alternatively run `tailscale set --auto-update`. |
 
-### Projects that aren't public
+GitHub Actions compiles in the public GitHub Releases URL. GitHub updates
+require a published release with a `<target>.manifest` asset and the named
+binaries. Actions run artifacts alone do not provide these endpoints.
+
+### GitLab projects that aren't public
 
 A project is only as visible as its parent groups: if any of them is
 internal or private, anonymous downloads redirect to `/users/sign_in`, and
@@ -150,7 +156,7 @@ A token on a device can be read by anyone who gains root on it. Limit it to
   successful restart only means the service manager accepted the command,
   and `<path>.old` is gone by then. Back up the executable yourself before
   updating if you need a guaranteed rollback.
-- **Unsigned.** Integrity rests on HTTPS to the GitLab instance and the
+- **Unsigned.** Integrity rests on HTTPS to the release host and the
   manifest's SHA-256 ([security.md](security.md)).
 - **Depends on upstream internals.** The overlay uses one unexported
   variable in upstream's CLI package (`maybeUpdateCmd`). If upstream changes

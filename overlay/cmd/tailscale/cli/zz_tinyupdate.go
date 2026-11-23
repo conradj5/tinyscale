@@ -85,7 +85,7 @@ func runTinyUpdate(ctx context.Context, args []string) error {
 	if t := tinyUpdateArgs.track; t != "" && t != "stable" {
 		return fmt.Errorf("Tinyscale only publishes the stable track, not %q", t)
 	}
-	base, token, err := tinyUpdateConfig(os.Getenv)
+	source, err := tinyUpdateConfig(os.Getenv)
 	if err != nil {
 		return err
 	}
@@ -101,8 +101,7 @@ func runTinyUpdate(ctx context.Context, args []string) error {
 	// quietly instead of killing this process with SIGPIPE.
 	signal.Ignore(syscall.SIGPIPE)
 	u := &tinyUpdater{
-		base:    base,
-		token:   token,
+		source:  source,
 		target:  tinyUpdateTarget,
 		current: version.Short(),
 		exe:     exe,
@@ -141,36 +140,68 @@ func tinySyslogger() func(string) {
 	}
 }
 
-// tinyUpdateConfig returns the releases base URL (no trailing slash) and the
-// optional token.
-func tinyUpdateConfig(getenv func(string) string) (base, token string, err error) {
-	base = getenv("TT_UPDATE_URL")
+type tinyUpdateSource struct {
+	base   string
+	token  string // private GitLab token
+	github bool
+}
+
+func tinyUpdateConfig(getenv func(string) string) (tinyUpdateSource, error) {
+	base := getenv("TT_UPDATE_URL")
 	if base == "" {
 		base = tinyUpdateDefaultURL
 	}
 	if base == "" {
-		return "", "", errors.New("no update URL: this build has none compiled in; set TT_UPDATE_URL")
+		return tinyUpdateSource{}, errors.New("no update URL: this build has none compiled in; set TT_UPDATE_URL")
 	}
 	pu, err := url.Parse(base)
-	if err != nil || pu.Host == "" {
-		return "", "", fmt.Errorf("invalid TT_UPDATE_URL %q", base)
+	if err != nil || pu.Host == "" || pu.User != nil || pu.RawQuery != "" || pu.ForceQuery || pu.Fragment != "" {
+		return tinyUpdateSource{}, fmt.Errorf("invalid TT_UPDATE_URL %q", base)
 	}
 	if pu.Scheme != "https" && !(pu.Scheme == "http" && getenv("TT_UPDATE_ALLOW_HTTP") == "1") {
-		return "", "", fmt.Errorf("TT_UPDATE_URL must use https: %q", base)
+		return tinyUpdateSource{}, fmt.Errorf("TT_UPDATE_URL must use https: %q", base)
 	}
-	if f := getenv("TT_UPDATE_TOKEN_FILE"); f != "" {
+	source := tinyUpdateSource{base: strings.TrimRight(base, "/"), github: strings.EqualFold(pu.Hostname(), "github.com")}
+	if f := getenv("TT_UPDATE_TOKEN_FILE"); f != "" && !source.github {
 		b, err := os.ReadFile(f)
 		if err != nil {
-			return "", "", fmt.Errorf("reading TT_UPDATE_TOKEN_FILE: %w", err)
+			return tinyUpdateSource{}, fmt.Errorf("reading TT_UPDATE_TOKEN_FILE: %w", err)
 		}
-		token = strings.TrimSpace(string(b))
+		source.token = strings.TrimSpace(string(b))
 	}
-	return strings.TrimRight(base, "/"), token, nil
+	return source, nil
+}
+
+func (s tinyUpdateSource) manifestURL(target, version string) string {
+	if version == "" {
+		if s.github {
+			return s.base + "/latest/download/" + target + ".manifest"
+		}
+		return s.base + "/permalink/latest/downloads/" + target + ".manifest"
+	}
+	return s.pinnedURL(version, target+".manifest")
+}
+
+func (s tinyUpdateSource) pinnedURL(version, asset string) string {
+	if s.github {
+		return s.base + "/download/v" + version + "/" + asset
+	}
+	return s.base + "/v" + version + "/downloads/" + asset
+}
+
+func (s tinyUpdateSource) binaryURL(version, target, suffix, key string, manifest map[string]string) (string, error) {
+	asset := target + suffix
+	if s.github {
+		asset = manifest[key+"_FILE"]
+		if !tinyAssetRE.MatchString(asset) {
+			return "", fmt.Errorf("manifest has invalid %s_FILE %q", key, asset)
+		}
+	}
+	return s.pinnedURL(version, asset), nil
 }
 
 type tinyUpdater struct {
-	base    string // e.g. https://gitlab.example.com/group/tinyscale/-/releases
-	token   string // sent as PRIVATE-TOKEN to the base URL's host only
+	source  tinyUpdateSource
 	target  string // target id, e.g. linux_arm64
 	current string // running version, X.Y.Z
 	exe     string // resolved path of the running executable
@@ -185,6 +216,7 @@ type tinyUpdater struct {
 }
 
 var (
+	tinyAssetRE      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	tinyVersionRE    = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 	errTinyNoService = errors.New("no tailscaled service found")
 )
@@ -210,11 +242,7 @@ func (u *tinyUpdater) run(wantVersion string, dryRun bool) (retErr error) {
 	if wantVersion != "" && !tinyVersionRE.MatchString(wantVersion) {
 		return fmt.Errorf("invalid --version %q", wantVersion)
 	}
-	manifestPath := "/permalink/latest/downloads/" + u.target + ".manifest"
-	if wantVersion != "" {
-		manifestPath = "/v" + wantVersion + "/downloads/" + u.target + ".manifest"
-	}
-	m, err := u.fetchManifest(u.base + manifestPath)
+	m, err := u.fetchManifest(u.source.manifestURL(u.target, wantVersion))
 	if err != nil {
 		return err
 	}
@@ -241,7 +269,10 @@ func (u *tinyUpdater) run(wantVersion string, dryRun bool) (retErr error) {
 	if err != nil || size <= 0 || len(wantSHA) != 64 {
 		return fmt.Errorf("manifest is missing a valid %s_SHA256/%s_SIZE", key, key)
 	}
-	fileURL := u.base + "/v" + newVer + "/downloads/" + u.target + suffix
+	fileURL, err := u.source.binaryURL(newVer, u.target, suffix, key, m)
+	if err != nil {
+		return err
+	}
 
 	if dryRun {
 		u.logf("Current: %s, latest: %s. Would install %s (%d bytes) to %s.", u.current, newVer, fileURL, size, u.exe)
@@ -314,10 +345,6 @@ func (u *tinyUpdater) httpClient() *http.Client {
 }
 
 func (u *tinyUpdater) get(rawURL string) (*http.Response, error) {
-	baseURL, err := url.Parse(u.base)
-	if err != nil {
-		return nil, err
-	}
 	c := *u.httpClient()
 	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
@@ -328,7 +355,7 @@ func (u *tinyUpdater) get(rawURL string) (*http.Response, error) {
 		}
 		// The token is only for the GitLab instance, never for redirect
 		// targets such as object storage.
-		if req.URL.Host != baseURL.Host {
+		if req.URL.Host != via[0].URL.Host {
 			req.Header.Del("PRIVATE-TOKEN")
 		}
 		return nil
@@ -338,8 +365,8 @@ func (u *tinyUpdater) get(rawURL string) (*http.Response, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "tinyscale-update/"+u.current)
-	if u.token != "" {
-		req.Header.Set("PRIVATE-TOKEN", u.token)
+	if u.source.token != "" {
+		req.Header.Set("PRIVATE-TOKEN", u.source.token)
 	}
 	res, err := c.Do(req)
 	if err != nil {

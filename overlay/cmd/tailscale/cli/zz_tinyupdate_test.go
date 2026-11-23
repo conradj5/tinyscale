@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -118,7 +119,7 @@ func newTinyTestEnv(t *testing.T, srv *tinyTestServer, current string, installed
 	}
 	env := &tinyTestEnv{out: new(bytes.Buffer)}
 	env.u = &tinyUpdater{
-		base:    srv.URL + "/rel",
+		source:  tinyUpdateSource{base: srv.URL + "/rel"},
 		target:  "linux_test",
 		current: current,
 		exe:     exe,
@@ -295,7 +296,7 @@ func TestTinyUpdateSignInRedirect(t *testing.T) {
 	}))
 	defer login.Close()
 	e := newTinyTestEnv(t, srv, "1.104.4", tinyRel1.plain)
-	e.u.base = login.URL + "/rel"
+	e.u.source.base = login.URL + "/rel"
 	if err := e.u.run("", false); err == nil || !strings.Contains(err.Error(), "requires signing in") {
 		t.Fatalf("err = %v, want a sign-in hint", err)
 	}
@@ -313,8 +314,8 @@ func TestTinyUpdateTokenNotSentToOtherHosts(t *testing.T) {
 	}))
 	defer gitlab.Close()
 	e := newTinyTestEnv(t, storage, "1.104.4", tinyRel1.plain)
-	e.u.base = gitlab.URL + "/rel"
-	e.u.token = "secret"
+	e.u.source.base = gitlab.URL + "/rel"
+	e.u.source.token = "secret"
 	if err := e.u.run("", false); err != nil {
 		t.Fatalf("run: %v\n%s", err, e.out)
 	}
@@ -328,17 +329,17 @@ func TestTinyUpdateConfig(t *testing.T) {
 	tok := filepath.Join(t.TempDir(), "token")
 	os.WriteFile(tok, []byte("glpat-x\n"), 0o600)
 
-	base, token, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "https://h/p/-/releases/", "TT_UPDATE_TOKEN_FILE": tok}))
-	if err != nil || base != "https://h/p/-/releases" || token != "glpat-x" {
-		t.Errorf("got %q %q %v", base, token, err)
+	source, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "https://h/p/-/releases/", "TT_UPDATE_TOKEN_FILE": tok}))
+	if err != nil || source.base != "https://h/p/-/releases" || source.token != "glpat-x" || source.github {
+		t.Errorf("got unexpected GitLab source or error: %v", err)
 	}
-	if _, _, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "http://h/p"})); err == nil {
+	if _, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "http://h/p"})); err == nil {
 		t.Error("accepted plain http")
 	}
-	if _, _, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "http://h/p", "TT_UPDATE_ALLOW_HTTP": "1"})); err != nil {
+	if _, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "http://h/p", "TT_UPDATE_ALLOW_HTTP": "1"})); err != nil {
 		t.Errorf("http with TT_UPDATE_ALLOW_HTTP=1: %v", err)
 	}
-	if _, _, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "https://h/p", "TT_UPDATE_TOKEN_FILE": "/nonexistent"})); err == nil {
+	if _, err := tinyUpdateConfig(env(map[string]string{"TT_UPDATE_URL": "https://h/p", "TT_UPDATE_TOKEN_FILE": "/nonexistent"})); err == nil {
 		t.Error("ignored a missing token file")
 	}
 	if got := tinyUpdateCmd.Name; got != "update" || maybeUpdateCmd() != tinyUpdateCmd {
@@ -394,6 +395,74 @@ func TestTinyUpdateKeepsBackupWithoutRestart(t *testing.T) {
 			}
 			if !strings.Contains(e.out.String(), "kept as "+e.u.exe+".old") {
 				t.Errorf("output does not mention the backup:\n%s", e.out)
+			}
+		})
+	}
+}
+
+type tinyTestTransport func(*http.Request) (*http.Response, error)
+
+func (f tinyTestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestTinyUpdateGitHubAssets(t *testing.T) {
+	const base = "https://github.com/owner/tinyscale/releases"
+	const pinned = "/download/v1.106.0/"
+	for _, tc := range []struct {
+		name, version, manifestPath, asset, wantError string
+		installed, payload                            []byte
+	}{
+		{"latest", "", "/latest/download/", "x", "", tinyRel1.plain, tinyRel2.plain},
+		{"pinned UPX", "1.106.0", pinned, "x.upx", "", tinyRel1.upx, tinyRel2.upx},
+		{"unsafe name", "", "/latest/download/", "", "invalid BIN_FILE", tinyRel1.plain, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newTinyTestServer(t, "1.106.0", tinyRel2)
+			e := newTinyTestEnv(t, srv, "1.104.4", tc.installed)
+			tokenFile := filepath.Join(t.TempDir(), "gitlab-token")
+			if err := os.WriteFile(tokenFile, []byte("private-gitlab-token"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			settings := map[string]string{"TT_UPDATE_URL": base, "TT_UPDATE_TOKEN_FILE": tokenFile}
+			source, err := tinyUpdateConfig(func(key string) string { return settings[key] })
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.u.source = source
+			manifest := tinyRel2.manifest(e.u.target)
+			if tc.wantError != "" {
+				manifest = strings.Replace(manifest, "BIN_FILE=x\n", "BIN_FILE=../x\n", 1)
+			}
+			var requests []string
+			e.u.client = &http.Client{Transport: tinyTestTransport(func(req *http.Request) (*http.Response, error) {
+				if req.Header.Get("PRIVATE-TOKEN") != "" {
+					t.Error("GitLab token sent to GitHub")
+				}
+				requests = append(requests, req.URL.String())
+				body := string(tc.payload)
+				if len(requests) == 1 {
+					body = manifest
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Request: req}, nil
+			})}
+			err = e.u.run(tc.version, false)
+			wantRequests := base + tc.manifestPath + e.u.target + ".manifest"
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("run error = %v, want %q", err, tc.wantError)
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantRequests += " " + base + pinned + tc.asset
+				if got := e.installed(t); got != string(tc.payload) {
+					t.Errorf("installed %q, want %q", got, tc.payload)
+				}
+			}
+			if got := strings.Join(requests, " "); got != wantRequests {
+				t.Errorf("requests = %q, want %q", got, wantRequests)
 			}
 		})
 	}
