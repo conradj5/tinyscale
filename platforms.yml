@@ -51,8 +51,8 @@ defaults:
   cgo: false
 
   # Replace `tailscale update` (and the admin console's Update button) with
-  # an updater that installs this project's releases. Opt-in per target;
-  # linux targets with combined: true only. See docs/self-update.md.
+  # an updater that installs this project's releases. Supported on Linux
+  # with combined: true. See docs/self-update.md.
   self_update: false
 
   compression:
@@ -76,6 +76,7 @@ defaults:
 os_defaults:
   linux:
     combined: true
+    self_update: true
     features:
       add:
         - cli
@@ -116,7 +117,6 @@ platforms:
   - os: linux
     arch: arm64
     enabled: true
-    self_update: true
     validation:
       max_size: 40MiB
       max_compressed_size: 12MiB

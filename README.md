@@ -45,7 +45,7 @@ the CLI: install it as `tailscaled` and symlink `tailscale` to it.
 [docs/manifest.md](docs/manifest.md) describes the URLs, the manifest format
 and the compatibility guarantees that update scripts can rely on.
 
-Optionally, a target can be built with `self_update: true`, so that
+Combined Linux builds enable `self_update` by default, so that
 `tailscale update` and the admin console's Update button install Tailscale
 Tiny releases ([docs/self-update.md](docs/self-update.md)).
 

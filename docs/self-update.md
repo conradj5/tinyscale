@@ -1,4 +1,4 @@
-# Self-update (opt-in)
+# Self-update
 
 With `self_update: true` on a target in `platforms.yml`, the built
 executable's `tailscale update` installs Tinyscale releases instead of
@@ -6,8 +6,8 @@ official Tailscale packages. tailscaled runs that same command for updates
 started from the admin console's **Update** button and for automatic
 updates, so all three paths use this project's builds.
 
-Only Linux targets with a combined executable support it. It's off by
-default.
+Linux targets with a combined executable enable it by default. A target
+can opt out with `self_update: false`.
 
 ## How it works
 
