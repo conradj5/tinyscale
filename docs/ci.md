@@ -176,3 +176,21 @@ times that on a small shared runner. Scheduled runs with nothing new to build
 use only the `detect-release` and `generate` jobs plus the child pipeline's
 `release` job, which confirms the Release is up to date (about a minute in
 total on a self-hosted runner).
+
+## Public GitHub releases
+
+Run **Publish Tinyscale Release** from the Actions tab on the default
+branch to publish the latest stable upstream version. The separate
+**Check for New Tailscale Releases** workflow runs daily at 05:17 UTC and
+can also be run manually. Both use the same check and release workflow.
+When the version is already published, the check skips the build jobs.
+
+The release workflow reuses the parallel CI builds. After all targets pass,
+it verifies the artifacts, uploads them to a draft, and checks each uploaded
+asset before publishing it as latest. Devices use stable manifest asset
+names such as `linux_arm64.manifest` and the versioned binaries named in
+those manifests. The publish job uses GitHub's built-in token.
+
+If an upload fails, rerun the workflow at the same source commit to resume
+the draft. A published release or a draft tied to another source commit
+requires manual review before changing any of its assets.
