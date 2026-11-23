@@ -15,6 +15,8 @@ jobs:
     outputs:
       targets: ${{ steps.plan.outputs.targets }}
       version: ${{ steps.plan.outputs.version }}
+      commit: ${{ steps.plan.outputs.commit }}
+      go_image: ${{ steps.plan.outputs.go_image }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -33,41 +35,51 @@ jobs:
         id: plan
         shell: bash
         run: |
-          targets=$(python3 -s tools/platforms.py list --json | jq -ce 'map(.id) | select(length > 0)')
+          targets=$(python3 -s tools/platforms.py list --json | jq -ce 'select(length > 0)')
           release=$(scripts/detect-release.sh)
-          version=$(sed -n 's/^RELEASE_VERSION=//p' <<< "$release")
-          [[ -n "$version" ]]
-          printf 'targets=%s\nversion=%s\n' "$targets" "$version" >> "$GITHUB_OUTPUT"
+          {
+            printf 'targets=%s\n' "$targets"
+            sed -n -e 's/^RELEASE_VERSION=/version=/p' \
+              -e 's/^RELEASE_COMMIT=/commit=/p' \
+              -e 's/^RELEASE_GO_IMAGE=/go_image=/p' <<< "$release"
+          } >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.id }})
     if: github.event_name != 'pull_request'
     needs: test
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(needs.test.outputs.targets) }}
+        include: ${{ fromJSON(needs.test.outputs.targets) }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl jq python3-yaml
-
       - name: Build and validate target
         env:
-          TARGETS: ${{ matrix.target }}
-          VERSION: ${{ needs.test.outputs.version }}
+          GO_IMAGE: ${{ needs.test.outputs.go_image }}
+          QEMU: ${{ matrix.validation.qemu }}
+          TT_BUILD_VERSION: ${{ needs.test.outputs.version }}
+          TT_BUILD_COMMIT: ${{ needs.test.outputs.commit }}
+          TT_TARGET_ID: ${{ matrix.id }}
+          TT_TARGET_CONFIG: ${{ toJSON(matrix) }}
           TT_UPDATE_URL: ${{ github.server_url }}/${{ github.repository }}/releases
-        run: make build
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/builds/project" --workdir /builds/project \
+            --env QEMU --env TT_BUILD_VERSION --env TT_BUILD_COMMIT \
+            --env TT_TARGET_ID --env TT_TARGET_CONFIG --env TT_UPDATE_URL \
+            "$GO_IMAGE" sh -ec '
+              sh scripts/ci/install-deps.sh build "$QEMU"
+              exec scripts/ci/build-job.sh
+            '
 
       - name: Upload validated binaries
         uses: actions/upload-artifact@v6
         with:
-          name: tinyscale-build-${{ matrix.target }}
-          path: dist/${{ matrix.target }}/
+          name: tinyscale-build-${{ matrix.id }}
+          path: dist/${{ matrix.id }}/
           if-no-files-found: error
