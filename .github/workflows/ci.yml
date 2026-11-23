@@ -10,8 +10,11 @@ permissions:
   contents: read
 
 jobs:
-  test-and-build:
+  test:
     runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+      version: ${{ steps.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -25,16 +28,46 @@ jobs:
       - name: Run tests
         run: make test
 
-      - name: Build and validate enabled targets
+      - name: Plan target builds
         if: github.event_name != 'pull_request'
+        id: plan
+        shell: bash
+        run: |
+          targets=$(python3 -s tools/platforms.py list --json | jq -ce 'map(.id) | select(length > 0)')
+          release=$(scripts/detect-release.sh)
+          version=$(sed -n 's/^RELEASE_VERSION=//p' <<< "$release")
+          [[ -n "$version" ]]
+          printf 'targets=%s\nversion=%s\n' "$targets" "$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.target }})
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.test.outputs.targets) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq python3-yaml
+
+      - name: Build and validate target
         env:
+          TARGETS: ${{ matrix.target }}
+          VERSION: ${{ needs.test.outputs.version }}
           TT_UPDATE_URL: ${{ github.server_url }}/${{ github.repository }}/releases
         run: make build
 
       - name: Upload validated binaries
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v6
         with:
-          name: tinyscale-builds
-          path: dist/
+          name: tinyscale-build-${{ matrix.target }}
+          path: dist/${{ matrix.target }}/
           if-no-files-found: error
