@@ -1,0 +1,85 @@
+name: Publish Tinyscale Release
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tinyscale-public-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      commit: ${{ steps.check.outputs.commit }}
+      targets: ${{ steps.check.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install release planning dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-yaml
+
+      - name: Check latest stable release
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release=$(scripts/detect-release.sh)
+          version=$(sed -n 's/^RELEASE_VERSION=//p' <<< "$release")
+          commit=$(sed -n 's/^RELEASE_COMMIT=//p' <<< "$release")
+          targets=$(python3 -s tools/platforms.py list --json | jq -ce 'map(.id) | select(length > 0)')
+          published=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -cs --arg tag "v$version" 'add | map(select(.tag_name == $tag and .draft == false)) | first // empty')
+          if [[ -n "$published" ]]; then
+            jq -e --argjson targets "$targets" '
+              [.assets[] | select(.state == "uploaded") | .name] as $assets
+              | all($targets[]; . as $id | $assets | index($id + ".manifest") != null)
+            ' <<< "$published" >/dev/null || {
+              echo "Published v$version is missing one or more target manifests" >&2
+              exit 1
+            }
+            echo "Tinyscale v$version is already published."
+            exit 0
+          fi
+          printf 'version=%s\ncommit=%s\ntargets=%s\n' "$version" "$commit" "$targets" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check
+    if: needs.check.outputs.version != ''
+    uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+
+  publish:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: tinyscale-build-*
+          path: artifacts
+
+      - name: Verify and publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.check.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.check.outputs.commit }}
+          RELEASE_TARGETS: ${{ needs.check.outputs.targets }}
+        run: bash scripts/ci/github-release.sh artifacts
