@@ -58,7 +58,7 @@ if [[ -n "${TT_RELEASES_JSON:-}" ]]; then
 elif [[ -n "$version" ]]; then
 	log "checking GitHub release v${version}"
 	github_api "/repos/${TT_UPSTREAM_REPO}/releases/tags/v${version}" >"$tmp/release.json" ||
-		die "GitHub release v${version} not found"
+		die "could not fetch GitHub release metadata for v${version}"
 	jq '[.]' "$tmp/release.json" >"$tmp/releases.json"
 else
 	log "listing GitHub releases for ${TT_UPSTREAM_REPO}"

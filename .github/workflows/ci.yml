@@ -39,6 +39,7 @@ jobs:
         if: github.event_name != 'pull_request'
         id: plan
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           TAILSCALE_VERSION: ${{ inputs.version }}
         shell: bash
         run: |
