@@ -1,0 +1,38 @@
+name: Tinyscale CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils curl file jq python3-yaml shellcheck
+
+      - name: Run tests
+        run: make test
+
+      - name: Build and validate enabled targets
+        if: github.event_name != 'pull_request'
+        run: make build
+
+      - name: Upload validated binaries
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tinyscale-builds
+          path: dist/
+          if-no-files-found: error
