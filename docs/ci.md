@@ -180,7 +180,9 @@ total on a self-hosted runner).
 ## Public GitHub releases
 
 Run **Publish Tinyscale Release** from the Actions tab on the default
-branch to publish the latest stable upstream version. The separate
+branch. Leave the version blank to publish the latest stable upstream
+version, or enter a stable version to publish that release as latest.
+The separate
 **Check for New Tailscale Releases** workflow runs daily at 05:17 UTC and
 can also be run manually. Both use the same check and release workflow.
 When the version is already published, the check skips the build jobs.

@@ -2,6 +2,11 @@ name: Publish Tinyscale Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Stable Tailscale version to publish. Leave blank for latest.
+        type: string
+        required: false
   workflow_call:
 
 permissions:
@@ -29,11 +34,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-yaml
 
-      - name: Check latest stable release
+      - name: Check selected stable release
         id: check
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TAILSCALE_VERSION: ${{ inputs.version }}
         run: |
           release=$(scripts/detect-release.sh)
           version=$(sed -n 's/^RELEASE_VERSION=//p' <<< "$release")
